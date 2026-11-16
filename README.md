@@ -11,6 +11,12 @@ curl 'http://localhost:3000/v1/avatar/svg?name=Ira' > ira.svg
 No database, no external services, no randomness. One deterministic function
 behind a thin HTTP edge.
 
+**Hosted at <https://blobbies-api.souravinsights.com>** — or self-host it, below.
+
+```sh
+curl 'https://blobbies-api.souravinsights.com/v1/avatar/svg?name=Ira' > ira.svg
+```
+
 ---
 
 ## Quick start
