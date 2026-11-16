@@ -1,9 +1,13 @@
 import fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import etag from '@fastify/etag';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
+import underPressure from '@fastify/under-pressure';
 import swagger from '@fastify/swagger';
 import scalar from '@scalar/fastify-api-reference';
 import { config } from './config.js';
+import { errorHandler } from './lib/errors.js';
 import { avatarRoutes } from './routes/avatar.js';
 import { metaRoutes } from './routes/meta.js';
 
@@ -20,6 +24,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Lightsail sits behind a proxy; without this the rate limiter sees the
     // proxy's IP and every client shares one bucket.
     trustProxy: true,
+    // Accept a caller's request id so one request can be traced end to end.
+    requestIdHeader: 'x-request-id',
     ajv: {
       customOptions: {
         // Fastify strips unknown query params by default. Typing a param name
@@ -29,10 +35,43 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
+  app.setErrorHandler(errorHandler);
+
   await app.register(cors, { origin: config.cors.origin });
+  await app.register(helmet, {
+    // The docs page loads Scalar from a CDN with inline scripts; a strict CSP
+    // would break it. The API itself serves no HTML worth locking down.
+    contentSecurityPolicy: false,
+    // Avatars are embedded cross-origin (`<img src="https://api…">`), so the
+    // default `same-origin` policy would block them. This must be `cross-origin`.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+  });
+
   // Output is deterministic, so an ETag is free and turns repeat requests into
   // 304s before the body is ever sent.
   await app.register(etag);
+
+  if (config.rateLimit.max > 0) {
+    await app.register(rateLimit, {
+      max: config.rateLimit.max,
+      timeWindow: config.rateLimit.window,
+    });
+  }
+
+  // Shed load instead of collapsing when the event loop backs up.
+  await app.register(underPressure, {
+    maxEventLoopDelay: 1000,
+    maxEventLoopUtilization: 0.98,
+    exposeStatusRoute: false,
+    pressureHandler: (_request, reply) => {
+      reply.status(503).send({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message: 'The service is under heavy load. Please retry shortly.',
+      });
+    },
+  });
 
   // The OpenAPI spec is generated from the routes' own JSON Schemas — there is
   // no hand-written spec to fall out of date.
@@ -61,6 +100,11 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // The interactive reference, at /docs.
   await app.register(scalar, { routePrefix: '/docs' });
+
+  // Echo the request id so a client can quote it in a bug report.
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('x-request-id', request.id);
+  });
 
   return app;
 }

@@ -37,6 +37,6 @@ describe('service endpoints', () => {
   it('serves a short index for agents', async () => {
     const response = await app.inject({ method: 'GET', url: '/llms.txt' });
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('/v1/avatar.svg');
+    expect(response.body).toContain('/v1/avatar/svg');
   });
 });
