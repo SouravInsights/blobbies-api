@@ -72,10 +72,35 @@ describe('GET /v1/avatar/svg', () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it('rejects a format it does not offer yet', async () => {
-    const response = await app.inject({ method: 'GET', url: '/v1/avatar/webp?name=Ira' });
+  it('rejects a format it does not offer', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/avatar/bmp?name=Ira' });
 
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe('GET /v1/avatar/png', () => {
+  it('rasterises at the requested size', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/avatar/png?name=Ira&size=64' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('image/png');
+    expect(response.rawPayload.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    // PNG IHDR: the width is the four bytes at offset 16.
+    expect(response.rawPayload.readUInt32BE(16)).toBe(64);
+  });
+
+  it('defaults to 128px', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/avatar/png?name=Ira' });
+
+    expect(response.rawPayload.readUInt32BE(16)).toBe(128);
+  });
+
+  it('clamps an absurd size instead of rendering it', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/avatar/png?name=Ira&size=4096' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.rawPayload.readUInt32BE(16)).toBe(1024);
   });
 });
 

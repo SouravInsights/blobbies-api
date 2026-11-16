@@ -15,6 +15,7 @@ const engineVersion = (require('blobbies/package.json') as { version: string }).
 const SERVICE = {
   name: 'blobbies-api',
   engine: { name: 'blobbies', version: engineVersion, contract: CONTRACT_VERSION },
+  formats: ['svg', 'png', 'json'],
   endpoints: {
     avatar: '/v1/avatar/{format}?name=Ira',
     manifest: '/v1/manifest.json',
@@ -30,7 +31,7 @@ const LLMS_TXT = `# Blobbies API
 
 ## Endpoints
 
-- \`GET /v1/avatar/svg?name=Ira\` — an SVG avatar. Also \`json\`.
+- \`GET /v1/avatar/svg?name=Ira\` — an SVG avatar. Also \`png\` and \`json\`.
 - \`GET /v1/manifest.json\` — every shape, mood and colour, as data.
 - \`GET /openapi.json\` — the OpenAPI specification.
 - \`GET /docs\` — interactive reference.
@@ -39,6 +40,8 @@ const LLMS_TXT = `# Blobbies API
 
 \`name\` (the seed), \`expression\`, \`shape\`, \`color\`, \`palette\`, \`blush\`,
 \`tilt\`, \`variant\`, \`size\`, \`rounded\`, \`animate\`.
+
+\`png\` rasterises, so \`size\` sets the pixel width (default 128, max 1024).
 
 ## Caching
 
