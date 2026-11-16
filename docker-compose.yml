@@ -1,0 +1,21 @@
+services:
+  api:
+    build: .
+    image: blobbies-api
+    ports:
+      - '3000:3000'
+    environment:
+      # Turn on structured request logs.
+      LOGGER: '1'
+      # One worker per core is a good starting point.
+      WORKERS: '2'
+      # Delete this line to accept any origin.
+      # CORS_ORIGIN: 'https://app.example.com'
+      # RATE_LIMIT_MAX: '600'
+    restart: unless-stopped
+    # The container needs no writable filesystem at runtime.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
