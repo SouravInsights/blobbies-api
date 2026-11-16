@@ -144,16 +144,24 @@ handles revalidation, so `304`s never reach Node either.
 
 ### AWS Lightsail
 
-A Lightsail Container Service takes this image directly:
+A Lightsail Container Service takes this image directly. Create the service
+once, then deploy with the script:
 
-1. Push the image:
-   `aws lightsail push-container-image --service-name <service> --label blobbies-api --image blobbies-api`
-2. Point a deployment at the pushed image, with a port `3000` open to the
-   internet and the environment variables above set.
-3. Attach a Lightsail distribution (CDN) in front of the public endpoint.
+```sh
+aws lightsail create-container-service \
+  --service-name blobbies-api --power nano --scale 1 --region us-east-1
+
+./scripts/deploy-lightsail.sh
+```
+
+The script builds the image, pushes it to Lightsail, and creates a deployment
+with the port, health check and environment already set. A deployment takes a
+couple of minutes; it prints the public URL when it is done.
 
 `trustProxy` is already on, so the rate limiter sees the real client IP rather
 than the load balancer's, and set `WORKERS` to the container's vCPU count.
+For a bigger audience, attach a Lightsail distribution (CDN) in front of the
+endpoint — every cached response is one the container never renders.
 
 ---
 
