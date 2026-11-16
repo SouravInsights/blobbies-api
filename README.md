@@ -111,6 +111,12 @@ docker build -t blobbies-api .
 docker run --rm -p 3000:3000 blobbies-api
 ```
 
+Or use the published image, which is the same thing without the build:
+
+```sh
+docker run --rm -p 3000:3000 ghcr.io/souravinsights/blobbies-api
+```
+
 ### Docker Compose
 
 ```sh
@@ -142,26 +148,52 @@ Output is deterministic and cached forever, so a CDN turns almost every
 request into a cache hit and the container only ever sees a miss. The `ETag`
 handles revalidation, so `304`s never reach Node either.
 
-### AWS Lightsail
+### Deploying to Lightsail
 
-A Lightsail Container Service takes this image directly. Create the service
-once, then deploy with the script:
+The repo deploys itself. On a push to `main`, a GitHub Action builds the image
+for `linux/amd64`, pushes it to GHCR, then SSHes into the instance to pull and
+restart the container — nothing is built on the instance, which matters on a
+1GB box.
+
+**One-time setup**
+
+1. Create the instance (Ubuntu, 1GB is plenty) and open ports `80` and `443`
+   in the Lightsail console's **Networking** tab. Attach a static IP and point
+   your domain's `A` record at it.
+2. Install Docker, plus nginx and a certificate if you have a domain:
+
+   ```sh
+   scp scripts/setup-instance.sh ubuntu@<ip>:~
+   ssh ubuntu@<ip> 'sudo DOMAIN=api.example.com bash setup-instance.sh'
+   ```
+
+3. Add two repository secrets under **Settings → Secrets and variables →
+   Actions**:
+
+   | Secret | Value |
+   | --- | --- |
+   | `LIGHTSAIL_HOST` | The instance's IP or hostname |
+   | `LIGHTSAIL_SSH_KEY` | The private key for the instance (the `.pem`) |
+
+   Add a repository *variable* `LIGHTSAIL_USER` only if your SSH user is not
+   `ubuntu`.
+
+4. Make the image public, so the instance can pull it with no credentials:
+   **your profile → Packages → blobbies-api → Package settings → Change
+   visibility → Public.** That is also what lets anyone else pull it.
+
+**Every deploy after that**
 
 ```sh
-aws lightsail create-container-service \
-  --service-name blobbies-api --power nano --scale 1 --region us-east-1
-
-./scripts/deploy-lightsail.sh
+git push origin main
 ```
 
-The script builds the image, pushes it to Lightsail, and creates a deployment
-with the port, health check and environment already set. A deployment takes a
-couple of minutes; it prints the public URL when it is done.
+That is the whole flow. The Action builds, pushes, deploys, and waits for
+`/health` before it reports success.
 
-`trustProxy` is already on, so the rate limiter sees the real client IP rather
-than the load balancer's, and set `WORKERS` to the container's vCPU count.
-For a bigger audience, attach a Lightsail distribution (CDN) in front of the
-endpoint — every cached response is one the container never renders.
+`trustProxy` is already on, so behind nginx the rate limiter sees the real
+client IP rather than the proxy's. `deploy-remote.sh` is a normal script — you
+can read it, and run it by hand on the instance.
 
 ---
 
